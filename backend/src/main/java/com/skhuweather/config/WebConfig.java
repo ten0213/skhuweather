@@ -16,7 +16,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(
                         "http://localhost:5173",
                         "http://localhost:3000",
-                    "http://13.125.139.31:8089")
+                        "http://13.125.139.31:8089",
+                        "https://skhuweather.vercel.app")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }
