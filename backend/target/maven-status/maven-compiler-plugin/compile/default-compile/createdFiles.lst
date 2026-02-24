@@ -1,0 +1,10 @@
+com/skhuweather/entity/WeatherReport.class
+com/skhuweather/SkhuweatherApplication.class
+com/skhuweather/controller/ReportController.class
+com/skhuweather/controller/NoticeController.class
+com/skhuweather/config/WebConfig.class
+com/skhuweather/repository/SchoolNoticeRepository.class
+com/skhuweather/entity/SchoolNotice.class
+com/skhuweather/config/DataInitializer.class
+com/skhuweather/controller/WeatherController.class
+com/skhuweather/repository/WeatherReportRepository.class
