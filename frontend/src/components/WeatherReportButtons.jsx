@@ -8,15 +8,47 @@ const WEATHER_TYPES = [
   { key: 'snowy',  label: '눈이 와요',      img: '/img/report/report_snow.png',   type: 5 },
 ];
 
-// [임시] 매번 새 ID 생성 → 중복 제보 제한 우회
+// 기기별 고정 sessionId (localStorage에 저장)
 function getSessionId() {
-  return crypto.randomUUID();
+  let id = localStorage.getItem('weatherSessionId');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('weatherSessionId', id);
+  }
+  return id;
+}
+
+// 마지막 제보 시각 저장/조회
+function getLastReportTime() {
+  const saved = localStorage.getItem('lastReportTime');
+  return saved ? parseInt(saved, 10) : null;
+}
+
+function setLastReportTime() {
+  localStorage.setItem('lastReportTime', Date.now().toString());
+}
+
+// 남은 제한 시간을 "X시간 Y분" 형태로 반환, null이면 제한 없음
+function getRemainingTime() {
+  const last = getLastReportTime();
+  if (!last) return null;
+  const elapsed = Date.now() - last;
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+  if (elapsed >= THREE_HOURS) return null;
+  const remaining = THREE_HOURS - elapsed;
+  const minutes = Math.ceil(remaining / 60000);
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}시간 ${minutes % 60}분`;
+  return `${minutes}분`;
 }
 
 function WeatherReportButtons({ counts, onReportSuccess }) {
-  // [임시] 3시간 제한 체크 비활성화
-
   async function handleReport(weatherType) {
+    const remaining = getRemainingTime();
+    if (remaining) {
+      alert(`제보는 3시간에 1번만 가능합니다.\n${remaining} 후에 다시 제보해주세요.`);
+      return;
+    }
+
     const sessionId = getSessionId();
 
     try {
@@ -29,8 +61,8 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       const data = await res.json();
 
       if (res.ok) {
+        setLastReportTime();
         alert('제보 완료!');
-        // [임시] 제한 저장 안 함 → 연속 제보 가능
         onReportSuccess?.();
       } else {
         alert(data.message || '제보에 실패했습니다.');
