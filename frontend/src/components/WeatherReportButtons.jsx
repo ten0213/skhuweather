@@ -11,12 +11,14 @@ const WEATHER_TYPES = [
 
 function WeatherReportButtons({ counts, onReportSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
   const submittingRef = useRef(false);
 
   async function handleReport(weatherType) {
     if (submittingRef.current) return;
     submittingRef.current = true;
     setIsSubmitting(true);
+    setStatusMsg('');
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
@@ -28,24 +30,32 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       const data = await res.json();
 
       if (res.ok) {
-        alert('제보 완료!');
+        setStatusMsg('제보 완료!');
         onReportSuccess?.();
-      } else if (res.status === 429) {
-        // 중복 요청은 조용히 무시
-      } else {
-        alert(data.message || '제보에 실패했습니다.');
+      } else if (res.status !== 429) {
+        setStatusMsg(data.message || '제보에 실패했습니다.');
       }
     } catch (e) {
-      alert('서버에 연결할 수 없습니다.');
+      setStatusMsg('서버에 연결할 수 없습니다.');
     } finally {
-      submittingRef.current = false;
-      setIsSubmitting(false);
+      // alert() 대신 인라인 메시지를 사용하므로, 탭 통과(tap-through) 방지를 위해
+      // 2초 뒤 버튼 재활성화
+      setTimeout(() => {
+        submittingRef.current = false;
+        setIsSubmitting(false);
+        setStatusMsg('');
+      }, 2000);
     }
   }
 
   return (
     <div className="icon-box">
       <h2 id="give_tip">현재 회대의 날씨를 제보해주세요!</h2>
+      {statusMsg && (
+        <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '8px 0' }}>
+          {statusMsg}
+        </p>
+      )}
       <div className="turtle-sit">
         {WEATHER_TYPES.map(({ key, label, img, type }) => (
           <li key={key} className="turtle-feel">
