@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // React 리렌더링·StrictMode 더블마운트와 무관하게 동작하는 모듈 단위 플래그
 let globalIsSubmitting = false;
+const SESSION_KEY = 'lastReportAt';
+const BLOCK_MS = 30_000; // 백엔드 IP 단기 제한(30초)과 동일
 
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
@@ -15,6 +17,21 @@ const WEATHER_TYPES = [
 function WeatherReportButtons({ counts, onReportSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+
+  // 새로고침 후에도 30초 차단 윈도우 복원
+  useEffect(() => {
+    const lastAt = Number(sessionStorage.getItem(SESSION_KEY) || 0);
+    const remaining = BLOCK_MS - (Date.now() - lastAt);
+    if (remaining > 0) {
+      globalIsSubmitting = true;
+      setIsSubmitting(true);
+      const timer = setTimeout(() => {
+        globalIsSubmitting = false;
+        setIsSubmitting(false);
+      }, remaining);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   async function handleReport(weatherType) {
     if (globalIsSubmitting) return;
@@ -32,6 +49,7 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       const data = await res.json();
 
       if (res.ok) {
+        sessionStorage.setItem(SESSION_KEY, Date.now().toString());
         setStatusMsg('제보 완료!');
         onReportSuccess?.();
       } else if (res.status !== 429) {
@@ -40,13 +58,16 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
     } catch (e) {
       setStatusMsg('서버에 연결할 수 없습니다.');
     } finally {
-      // alert() 대신 인라인 메시지를 사용하므로, 탭 통과(tap-through) 방지를 위해
-      // 2초 뒤 버튼 재활성화
-      setTimeout(() => {
-        globalIsSubmitting = false;
-        setIsSubmitting(false);
-        setStatusMsg('');
-      }, 2000);
+      const lastAt = Number(sessionStorage.getItem(SESSION_KEY) || 0);
+      const remaining = BLOCK_MS - (Date.now() - lastAt);
+      if (remaining > 0) {
+        // 제보 성공: 30초 윈도우가 끝날 때 재활성화, 2초 후 메시지 제거
+        setTimeout(() => { globalIsSubmitting = false; setIsSubmitting(false); }, remaining);
+        setTimeout(() => setStatusMsg(''), 2000);
+      } else {
+        // 제보 실패: 2초 후 재활성화
+        setTimeout(() => { globalIsSubmitting = false; setIsSubmitting(false); setStatusMsg(''); }, 2000);
+      }
     }
   }
 
