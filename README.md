@@ -25,7 +25,7 @@ mvn spring-boot:run
 
 - 서버: http://localhost:8080
 - **H2 Console**: http://localhost:8080/h2-console
-  - JDBC URL: `jdbc:h2:mem:skhuweather`
+  - JDBC URL: `jdbc:h2:file:./data/skhuweather`
   - User: `sa` / Password: (빈칸)
 
 ### API 목록

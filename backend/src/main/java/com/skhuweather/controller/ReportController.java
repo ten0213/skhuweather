@@ -2,6 +2,9 @@ package com.skhuweather.controller;
 
 import com.skhuweather.entity.WeatherReport;
 import com.skhuweather.repository.WeatherReportRepository;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -9,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/reports")
@@ -31,20 +35,44 @@ public class ReportController {
         return counts;
     }
 
-    // 날씨 제보 제출 (3시간 내 동일 세션 중복 방지)
+    // 날씨 제보 제출 (3시간 내 동일 기기 중복 방지 - HttpOnly 쿠키 기반)
     @PostMapping
-    public ResponseEntity<Map<String, String>> submitReport(@RequestBody Map<String, Object> body) {
-        String sessionId = (String) body.get("sessionId");
-        int weatherType  = (int) body.get("weatherType");
+    public ResponseEntity<Map<String, String>> submitReport(
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        int weatherType = (int) body.get("weatherType");
+
+        // HttpOnly 쿠키에서 식별자 추출 (없으면 새로 생성)
+        String reporterId = null;
+        if (request.getCookies() != null) {
+            for (Cookie c : request.getCookies()) {
+                if ("skhu_reporter_id".equals(c.getName())) {
+                    reporterId = c.getValue();
+                    break;
+                }
+            }
+        }
+        if (reporterId == null || reporterId.isBlank()) {
+            reporterId = UUID.randomUUID().toString();
+        }
+
+        // 쿠키 갱신 (HttpOnly로 JS 접근 불가)
+        Cookie cookie = new Cookie("skhu_reporter_id", reporterId);
+        cookie.setHttpOnly(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(3 * 60 * 60); // 3시간
+        response.addCookie(cookie);
 
         LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(3);
 
-        if (reportRepo.existsBySessionIdAndCreatedAtAfter(sessionId, threeHoursAgo)) {
+        if (reportRepo.existsBySessionIdAndCreatedAtAfter(reporterId, threeHoursAgo)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
         }
 
-        WeatherReport report = new WeatherReport(weatherType, sessionId, LocalDateTime.now());
+        WeatherReport report = new WeatherReport(weatherType, reporterId, LocalDateTime.now());
         reportRepo.save(report);
 
         return ResponseEntity.ok(Map.of("message", "제보 완료!"));
