@@ -20,13 +20,17 @@ import java.util.Map;
 @RequestMapping("/api/reports")
 public class ReportController {
 
+    private static final int REPORT_WINDOW_HOURS = 3;
+    private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 20;
+    private static final int MAX_CLIENT_ID_LENGTH = 128;
+
     @Autowired
     private WeatherReportRepository reportRepo;
 
     // 현재 3시간 기준 각 날씨 유형별 제보 수 반환
     @GetMapping
     public Map<String, Long> getReports() {
-        LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(3);
+        LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
         Map<String, Long> counts = new LinkedHashMap<>();
         counts.put("rainy",  reportRepo.countByWeatherTypeAndCreatedAtAfter(0, threeHoursAgo));
         counts.put("cloudy", reportRepo.countByWeatherTypeAndCreatedAtAfter(1, threeHoursAgo));
@@ -37,7 +41,7 @@ public class ReportController {
         return counts;
     }
 
-    // 날씨 제보 제출 (3시간 내 동일 클라이언트 지문/IP 중복 방지)
+    // 날씨 제보 제출 (3시간 내 동일 클라이언트 중복 방지 + IP 단위 과다 제보 제한)
     @PostMapping
     public ResponseEntity<Map<String, String>> submitReport(
             @RequestBody Map<String, Object> body,
@@ -50,18 +54,23 @@ public class ReportController {
         }
 
         String ipAddress = extractClientIp(request);
+        String clientId = normalizeClientId(request.getHeader("X-Client-Id"));
         String userAgent = request.getHeader("User-Agent");
-        String clientFingerprint = buildClientFingerprint(ipAddress, userAgent);
+        String clientFingerprint = buildClientFingerprint(clientId, ipAddress, userAgent);
 
-        LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(3);
+        LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
 
-        // 쿠키 삭제로 우회되지 않도록 서버 계산 지문 + IP를 동시에 확인
-        boolean duplicated = reportRepo.existsBySessionIdAndCreatedAtAfter(clientFingerprint, threeHoursAgo)
-                || reportRepo.existsByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo);
-
-        if (duplicated) {
+        // 동일 클라이언트(클라이언트 ID 기반 지문)는 3시간 내 1회만 허용
+        if (reportRepo.existsBySessionIdAndCreatedAtAfter(clientFingerprint, threeHoursAgo)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
+        }
+
+        // NAT/공용망 환경을 고려해 IP는 완전 차단이 아닌 3시간 누적 상한으로 제한
+        long ipReportCount = reportRepo.countByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo);
+        if (ipReportCount >= MAX_REPORTS_PER_IP_IN_WINDOW) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "동일 네트워크에서 제보가 많습니다. 잠시 후 다시 시도해주세요."));
         }
 
         // sessionId 컬럼은 서버가 계산한 클라이언트 지문 저장용으로 사용
@@ -143,10 +152,34 @@ public class ReportController {
         }
     }
 
-    private String buildClientFingerprint(String ipAddress, String userAgent) {
+    private String normalizeClientId(String rawClientId) {
+        if (rawClientId == null) {
+            return null;
+        }
+
+        String clientId = rawClientId.trim();
+        if (clientId.isBlank() || clientId.length() > MAX_CLIENT_ID_LENGTH) {
+            return null;
+        }
+
+        if (!clientId.matches("[A-Za-z0-9._-]+")) {
+            return null;
+        }
+
+        return clientId;
+    }
+
+    private String buildClientFingerprint(String clientId, String ipAddress, String userAgent) {
         String normalizedIp = ipAddress == null ? "unknown" : ipAddress;
         String normalizedUa = (userAgent == null || userAgent.isBlank()) ? "unknown" : userAgent.trim();
-        String payload = normalizedIp + "|" + normalizedUa;
+        String payload;
+
+        if (clientId != null) {
+            payload = "cid|" + clientId;
+        } else {
+            // 구버전/헤더 누락 클라이언트는 기존 방식(IP+UA)으로 fallback
+            payload = "fallback|" + normalizedIp + "|" + normalizedUa;
+        }
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

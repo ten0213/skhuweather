@@ -11,5 +11,5 @@ public interface WeatherReportRepository extends JpaRepository<WeatherReport, Lo
 
     boolean existsBySessionIdAndCreatedAtAfter(String sessionId, LocalDateTime since);
 
-    boolean existsByIpAddressAndCreatedAtAfter(String ipAddress, LocalDateTime since);
+    long countByIpAddressAndCreatedAtAfter(String ipAddress, LocalDateTime since);
 }
