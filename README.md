@@ -23,8 +23,8 @@ cd backend
 mvn spring-boot:run
 ```
 
-- 서버: http://localhost:8080
-- **H2 Console**: http://localhost:8080/h2-console
+- 서버: http://localhost:8089
+- **H2 Console**: http://localhost:8089/h2-console
   - JDBC URL: `jdbc:h2:file:./data/skhuweather`
   - User: `sa` / Password: (빈칸)
 
@@ -49,6 +49,11 @@ npm run dev
 
 - 앱: http://localhost:5173
 - 백엔드가 먼저 실행되어 있어야 합니다.
+- 프론트 API 프록시 기본값: `http://localhost:8089`
+- 원격 백엔드를 쓸 경우 실행 전에 `VITE_API_TARGET` 지정:
+  ```bash
+  VITE_API_TARGET=http://<host>:<port> npm run dev
+  ```
 
 ---
 
