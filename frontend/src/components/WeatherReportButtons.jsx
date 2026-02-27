@@ -1,42 +1,3 @@
-const CLIENT_ID_STORAGE_KEY = 'skhuweather_report_client_id';
-const CLIENT_ID_REGEX = /^[A-Za-z0-9._-]+$/;
-const MAX_CLIENT_ID_LENGTH = 128;
-
-function isValidClientId(value) {
-  return (
-    typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= MAX_CLIENT_ID_LENGTH &&
-    CLIENT_ID_REGEX.test(value)
-  );
-}
-
-function createClientId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function getClientId() {
-  try {
-    const saved = localStorage.getItem(CLIENT_ID_STORAGE_KEY);
-    if (isValidClientId(saved)) {
-      return saved;
-    }
-
-    const next = createClientId();
-    if (!isValidClientId(next)) {
-      return null;
-    }
-
-    localStorage.setItem(CLIENT_ID_STORAGE_KEY, next);
-    return next;
-  } catch {
-    return null;
-  }
-}
-
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
   { key: 'cloudy', label: '흐려요',         img: '/img/report/report_cloudy.png', type: 1 },
@@ -49,15 +10,9 @@ const WEATHER_TYPES = [
 function WeatherReportButtons({ counts, onReportSuccess }) {
   async function handleReport(weatherType) {
     try {
-      const clientId = getClientId();
-      const headers = { 'Content-Type': 'application/json' };
-      if (clientId) {
-        headers['X-Client-Id'] = clientId;
-      }
-
       const res = await fetch('/api/reports', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ weatherType }),
       });

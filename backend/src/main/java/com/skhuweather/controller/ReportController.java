@@ -22,7 +22,6 @@ public class ReportController {
 
     private static final int REPORT_WINDOW_HOURS = 3;
     private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 20;
-    private static final int MAX_CLIENT_ID_LENGTH = 128;
 
     @Autowired
     private WeatherReportRepository reportRepo;
@@ -54,13 +53,13 @@ public class ReportController {
         }
 
         String ipAddress = extractClientIp(request);
-        String clientId = normalizeClientId(request.getHeader("X-Client-Id"));
         String userAgent = request.getHeader("User-Agent");
-        String clientFingerprint = buildClientFingerprint(clientId, ipAddress, userAgent);
+        String acceptLanguage = request.getHeader("Accept-Language");
+        String clientFingerprint = buildClientFingerprint(ipAddress, userAgent, acceptLanguage);
 
         LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
 
-        // 동일 클라이언트(클라이언트 ID 기반 지문)는 3시간 내 1회만 허용
+        // 동일 클라이언트(IP/브라우저 지문)는 3시간 내 1회만 허용
         if (reportRepo.existsBySessionIdAndCreatedAtAfter(clientFingerprint, threeHoursAgo)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
@@ -97,6 +96,16 @@ public class ReportController {
     }
 
     private String extractClientIp(HttpServletRequest request) {
+        String remoteAddr = normalizeIp(request.getRemoteAddr());
+        if (remoteAddr == null) {
+            return "unknown";
+        }
+
+        // 신뢰 가능한 프록시를 거친 요청에서만 전달 헤더를 사용한다.
+        if (!isTrustedProxyIp(remoteAddr)) {
+            return remoteAddr;
+        }
+
         String xRealIp = normalizeIp(request.getHeader("X-Real-IP"));
         if (xRealIp != null) {
             return xRealIp;
@@ -120,8 +129,7 @@ public class ReportController {
             }
         }
 
-        String remoteAddr = normalizeIp(request.getRemoteAddr());
-        return remoteAddr != null ? remoteAddr : "unknown";
+        return remoteAddr;
     }
 
     private String normalizeIp(String rawValue) {
@@ -152,34 +160,51 @@ public class ReportController {
         }
     }
 
-    private String normalizeClientId(String rawClientId) {
-        if (rawClientId == null) {
-            return null;
+    private boolean isTrustedProxyIp(String ip) {
+        if (ip == null) {
+            return false;
         }
 
-        String clientId = rawClientId.trim();
-        if (clientId.isBlank() || clientId.length() > MAX_CLIENT_ID_LENGTH) {
-            return null;
+        if ("::1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || ip.startsWith("127.")) {
+            return true;
         }
 
-        if (!clientId.matches("[A-Za-z0-9._-]+")) {
-            return null;
+        if (ip.startsWith("10.") || ip.startsWith("192.168.")) {
+            return true;
         }
 
-        return clientId;
+        if (ip.startsWith("172.")) {
+            String[] parts = ip.split("\\.");
+            if (parts.length >= 2) {
+                try {
+                    int secondOctet = Integer.parseInt(parts[1]);
+                    if (secondOctet >= 16 && secondOctet <= 31) {
+                        return true;
+                    }
+                } catch (NumberFormatException ignored) {
+                    return false;
+                }
+            }
+        }
+
+        String lower = ip.toLowerCase();
+        return lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80:");
     }
 
-    private String buildClientFingerprint(String clientId, String ipAddress, String userAgent) {
-        String normalizedIp = ipAddress == null ? "unknown" : ipAddress;
-        String normalizedUa = (userAgent == null || userAgent.isBlank()) ? "unknown" : userAgent.trim();
-        String payload;
-
-        if (clientId != null) {
-            payload = "cid|" + clientId;
-        } else {
-            // 구버전/헤더 누락 클라이언트는 기존 방식(IP+UA)으로 fallback
-            payload = "fallback|" + normalizedIp + "|" + normalizedUa;
+    private String normalizeHeader(String value) {
+        if (value == null) {
+            return "unknown";
         }
+
+        String normalized = value.trim();
+        return normalized.isEmpty() ? "unknown" : normalized;
+    }
+
+    private String buildClientFingerprint(String ipAddress, String userAgent, String acceptLanguage) {
+        String normalizedIp = ipAddress == null ? "unknown" : ipAddress;
+        String normalizedUa = normalizeHeader(userAgent);
+        String normalizedLang = normalizeHeader(acceptLanguage);
+        String payload = "ipua|" + normalizedIp + "|" + normalizedUa + "|" + normalizedLang;
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
