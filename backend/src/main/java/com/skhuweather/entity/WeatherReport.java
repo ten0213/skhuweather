@@ -18,14 +18,18 @@ public class WeatherReport {
     @Column(nullable = false, length = 100)
     private String sessionId;
 
+    @Column(length = 45)
+    private String ipAddress;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
     public WeatherReport() {}
 
-    public WeatherReport(int weatherType, String sessionId, LocalDateTime createdAt) {
+    public WeatherReport(int weatherType, String sessionId, String ipAddress, LocalDateTime createdAt) {
         this.weatherType = weatherType;
         this.sessionId = sessionId;
+        this.ipAddress = ipAddress;
         this.createdAt = createdAt;
     }
 
@@ -34,6 +38,8 @@ public class WeatherReport {
     public void setWeatherType(int weatherType) { this.weatherType = weatherType; }
     public String getSessionId() { return sessionId; }
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public String getIpAddress() { return ipAddress; }
+    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -35,7 +35,7 @@ public class ReportController {
         return counts;
     }
 
-    // 날씨 제보 제출 (3시간 내 동일 기기 중복 방지 - HttpOnly 쿠키 기반)
+    // 날씨 제보 제출 (3시간 내 동일 기기 중복 방지 - IP + HttpOnly 쿠키 기반)
     @PostMapping
     public ResponseEntity<Map<String, String>> submitReport(
             @RequestBody Map<String, Object> body,
@@ -43,6 +43,15 @@ public class ReportController {
             HttpServletResponse response) {
 
         int weatherType = (int) body.get("weatherType");
+
+        // 클라이언트 IP 추출 (프록시/로드밸런서 고려)
+        String ipAddress = request.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isBlank()) {
+            ipAddress = request.getRemoteAddr();
+        } else {
+            // X-Forwarded-For는 "client, proxy1, proxy2" 형태일 수 있음
+            ipAddress = ipAddress.split(",")[0].trim();
+        }
 
         // HttpOnly 쿠키에서 식별자 추출 (없으면 새로 생성)
         String reporterId = null;
@@ -67,12 +76,19 @@ public class ReportController {
 
         LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(3);
 
+        // IP 기반 중복 검사 (쿠키 삭제 우회 방지)
+        if (reportRepo.existsByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
+        }
+
+        // 쿠키 기반 중복 검사 (추가 보호)
         if (reportRepo.existsBySessionIdAndCreatedAtAfter(reporterId, threeHoursAgo)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
         }
 
-        WeatherReport report = new WeatherReport(weatherType, reporterId, LocalDateTime.now());
+        WeatherReport report = new WeatherReport(weatherType, reporterId, ipAddress, LocalDateTime.now());
         reportRepo.save(report);
 
         return ResponseEntity.ok(Map.of("message", "제보 완료!"));
