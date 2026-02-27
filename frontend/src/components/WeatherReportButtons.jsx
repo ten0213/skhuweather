@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
   { key: 'cloudy', label: '흐려요',         img: '/img/report/report_cloudy.png', type: 1 },
@@ -8,7 +10,11 @@ const WEATHER_TYPES = [
 ];
 
 function WeatherReportButtons({ counts, onReportSuccess }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   async function handleReport(weatherType) {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
@@ -27,6 +33,8 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       }
     } catch (e) {
       alert('서버에 연결할 수 없습니다.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 

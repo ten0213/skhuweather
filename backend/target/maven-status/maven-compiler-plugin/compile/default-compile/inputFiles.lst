@@ -3,6 +3,7 @@
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/controller/WeatherController.java
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/config/DataInitializer.java
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/controller/ReportController.java
+/Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/config/ReportResetScheduler.java
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/repository/WeatherReportRepository.java
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/config/WebConfig.java
 /Users/hwangjaehyeon/skhuweather/backend/src/main/java/com/skhuweather/entity/SchoolNotice.java
