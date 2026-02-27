@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
@@ -11,9 +11,11 @@ const WEATHER_TYPES = [
 
 function WeatherReportButtons({ counts, onReportSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   async function handleReport(weatherType) {
-    if (isSubmitting) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/reports', {
@@ -34,6 +36,7 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
     } catch (e) {
       alert('서버에 연결할 수 없습니다.');
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -44,7 +47,7 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       <div className="turtle-sit">
         {WEATHER_TYPES.map(({ key, label, img, type }) => (
           <li key={key} className="turtle-feel">
-            <button className="report-btn" onClick={() => handleReport(type)}>
+            <button className="report-btn" onClick={() => handleReport(type)} disabled={isSubmitting}>
               <img src={img} style={{ width: '150px' }} alt={label} />
               <span>{counts?.[key] ?? 0}</span>
             </button>
