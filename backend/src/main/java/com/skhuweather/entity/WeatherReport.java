@@ -16,6 +16,7 @@ public class WeatherReport {
     private int weatherType;
 
     @Column(nullable = false, length = 100)
+    // 기존 컬럼명을 유지하면서 서버 계산 클라이언트 지문(SHA-256)을 저장
     private String sessionId;
 
     @Column(length = 45)
