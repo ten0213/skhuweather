@@ -1,4 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
+
+// React 리렌더링·StrictMode 더블마운트와 무관하게 동작하는 모듈 단위 플래그
+let globalIsSubmitting = false;
 
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
@@ -12,11 +15,10 @@ const WEATHER_TYPES = [
 function WeatherReportButtons({ counts, onReportSuccess }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
-  const submittingRef = useRef(false);
 
   async function handleReport(weatherType) {
-    if (submittingRef.current) return;
-    submittingRef.current = true;
+    if (globalIsSubmitting) return;
+    globalIsSubmitting = true;
     setIsSubmitting(true);
     setStatusMsg('');
     try {
@@ -41,7 +43,7 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       // alert() 대신 인라인 메시지를 사용하므로, 탭 통과(tap-through) 방지를 위해
       // 2초 뒤 버튼 재활성화
       setTimeout(() => {
-        submittingRef.current = false;
+        globalIsSubmitting = false;
         setIsSubmitting(false);
         setStatusMsg('');
       }, 2000);

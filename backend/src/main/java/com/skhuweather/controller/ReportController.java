@@ -26,6 +26,8 @@ public class ReportController {
     private static final int MAX_REPORTS_PER_CLIENT_IN_WINDOW = 2;
     private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 20;
     private static final int MIN_REPORT_INTERVAL_SECONDS = 3;
+    // 지문이 달라지더라도 동일 IP에서 30초 내 중복 제보 방지
+    private static final int MIN_IP_REPORT_INTERVAL_SECONDS = 30;
 
     // 동일 클라이언트의 동시 중복 요청 차단용 잠금 집합
     private final Set<String> processingClients = ConcurrentHashMap.newKeySet();
@@ -73,7 +75,14 @@ public class ReportController {
         try {
             LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
 
-            // 최소 제보 간격 체크: 3초 이내 연속 제보 차단
+            // IP 단위 30초 단기 중복 차단 (지문이 바뀌어도 같은 IP는 30초 내 1회만 허용)
+            LocalDateTime ipIntervalAgo = LocalDateTime.now().minusSeconds(MIN_IP_REPORT_INTERVAL_SECONDS);
+            if (reportRepo.countByIpAddressAndCreatedAtAfter(ipAddress, ipIntervalAgo) > 0) {
+                return ResponseEntity.status(429)
+                        .body(Map.of("message", "잠시 후 다시 시도해주세요."));
+            }
+
+            // 지문 단위 3초 이내 연속 제보 차단
             LocalDateTime intervalAgo = LocalDateTime.now().minusSeconds(MIN_REPORT_INTERVAL_SECONDS);
             if (reportRepo.countBySessionIdAndCreatedAtAfter(clientFingerprint, intervalAgo) > 0) {
                 return ResponseEntity.status(429)
