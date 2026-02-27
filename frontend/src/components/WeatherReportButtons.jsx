@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 // React 리렌더링·StrictMode 더블마운트와 무관하게 동작하는 모듈 단위 플래그
 let globalIsSubmitting = false;
 const SESSION_KEY = 'lastReportAt';
-const BLOCK_MS = 30_000; // 백엔드 IP 단기 제한(30초)과 동일
+const BLOCK_MS = 10_000; // 백엔드 IP 단기 제한(10초)과 동일
 
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },

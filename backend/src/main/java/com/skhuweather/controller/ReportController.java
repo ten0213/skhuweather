@@ -24,10 +24,10 @@ public class ReportController {
 
     private static final int REPORT_WINDOW_HOURS = 3;
     private static final int MAX_REPORTS_PER_CLIENT_IN_WINDOW = 2;
-    private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 20;
+    private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 200;
     private static final int MIN_REPORT_INTERVAL_SECONDS = 3;
-    // 지문이 달라지더라도 동일 IP에서 30초 내 중복 제보 방지
-    private static final int MIN_IP_REPORT_INTERVAL_SECONDS = 30;
+    // 지문이 달라지더라도 동일 IP에서 10초 내 중복 제보 방지
+    private static final int MIN_IP_REPORT_INTERVAL_SECONDS = 10;
 
     // 동일 클라이언트의 동시 중복 요청 차단용 잠금 집합
     private final Set<String> processingClients = ConcurrentHashMap.newKeySet();
