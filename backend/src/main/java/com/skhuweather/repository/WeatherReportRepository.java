@@ -9,7 +9,7 @@ public interface WeatherReportRepository extends JpaRepository<WeatherReport, Lo
 
     long countByWeatherTypeAndCreatedAtAfter(int weatherType, LocalDateTime since);
 
-    boolean existsBySessionIdAndCreatedAtAfter(String sessionId, LocalDateTime since);
+    long countBySessionIdAndCreatedAtAfter(String sessionId, LocalDateTime since);
 
     long countByIpAddressAndCreatedAtAfter(String ipAddress, LocalDateTime since);
 }

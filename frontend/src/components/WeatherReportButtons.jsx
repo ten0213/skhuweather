@@ -30,6 +30,8 @@ function WeatherReportButtons({ counts, onReportSuccess }) {
       if (res.ok) {
         alert('제보 완료!');
         onReportSuccess?.();
+      } else if (res.status === 429) {
+        // 중복 요청은 조용히 무시
       } else {
         alert(data.message || '제보에 실패했습니다.');
       }

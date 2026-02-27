@@ -15,13 +15,20 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/reports")
 public class ReportController {
 
     private static final int REPORT_WINDOW_HOURS = 3;
+    private static final int MAX_REPORTS_PER_CLIENT_IN_WINDOW = 2;
     private static final int MAX_REPORTS_PER_IP_IN_WINDOW = 20;
+    private static final int MIN_REPORT_INTERVAL_SECONDS = 3;
+
+    // 동일 클라이언트의 동시 중복 요청 차단용 잠금 집합
+    private final Set<String> processingClients = ConcurrentHashMap.newKeySet();
 
     @Autowired
     private WeatherReportRepository reportRepo;
@@ -57,26 +64,45 @@ public class ReportController {
         String acceptLanguage = request.getHeader("Accept-Language");
         String clientFingerprint = buildClientFingerprint(ipAddress, userAgent, acceptLanguage);
 
-        LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
-
-        // 동일 클라이언트(IP/브라우저 지문)는 3시간 내 1회만 허용
-        if (reportRepo.existsBySessionIdAndCreatedAtAfter(clientFingerprint, threeHoursAgo)) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
+        // 동시 중복 요청 차단: 이미 처리 중인 동일 클라이언트 요청이면 즉시 거부
+        if (!processingClients.add(clientFingerprint)) {
+            return ResponseEntity.status(429)
+                    .body(Map.of("message", "처리 중입니다."));
         }
 
-        // NAT/공용망 환경을 고려해 IP는 완전 차단이 아닌 3시간 누적 상한으로 제한
-        long ipReportCount = reportRepo.countByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo);
-        if (ipReportCount >= MAX_REPORTS_PER_IP_IN_WINDOW) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", "동일 네트워크에서 제보가 많습니다. 잠시 후 다시 시도해주세요."));
+        try {
+            LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(REPORT_WINDOW_HOURS);
+
+            // 최소 제보 간격 체크: 3초 이내 연속 제보 차단
+            LocalDateTime intervalAgo = LocalDateTime.now().minusSeconds(MIN_REPORT_INTERVAL_SECONDS);
+            if (reportRepo.countBySessionIdAndCreatedAtAfter(clientFingerprint, intervalAgo) > 0) {
+                return ResponseEntity.status(429)
+                        .body(Map.of("message", "처리 중입니다."));
+            }
+
+            // 동일 클라이언트(IP/브라우저 지문)는 3시간 내 2회만 허용
+            long clientReportCount = reportRepo.countBySessionIdAndCreatedAtAfter(clientFingerprint, threeHoursAgo);
+            if (clientReportCount >= MAX_REPORTS_PER_CLIENT_IN_WINDOW) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "제보는 3시간에 2번만 가능합니다."));
+            }
+
+            // NAT/공용망 환경을 고려해 IP는 완전 차단이 아닌 3시간 누적 상한으로 제한
+            long ipReportCount = reportRepo.countByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo);
+            if (ipReportCount >= MAX_REPORTS_PER_IP_IN_WINDOW) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("message", "동일 네트워크에서 제보가 많습니다. 잠시 후 다시 시도해주세요."));
+            }
+
+            // sessionId 컬럼은 서버가 계산한 클라이언트 지문 저장용으로 사용
+            WeatherReport report = new WeatherReport(weatherType, clientFingerprint, ipAddress, LocalDateTime.now());
+            reportRepo.save(report);
+
+            return ResponseEntity.ok(Map.of("message", "제보 완료!"));
+
+        } finally {
+            processingClients.remove(clientFingerprint);
         }
-
-        // sessionId 컬럼은 서버가 계산한 클라이언트 지문 저장용으로 사용
-        WeatherReport report = new WeatherReport(weatherType, clientFingerprint, ipAddress, LocalDateTime.now());
-        reportRepo.save(report);
-
-        return ResponseEntity.ok(Map.of("message", "제보 완료!"));
     }
 
     private Integer parseWeatherType(Object value) {
