@@ -64,7 +64,8 @@ public class ReportController {
         String ipAddress = extractClientIp(request);
         String userAgent = request.getHeader("User-Agent");
         String acceptLanguage = request.getHeader("Accept-Language");
-        String clientFingerprint = buildClientFingerprint(ipAddress, userAgent, acceptLanguage);
+        // IP는 지문에서 제외 — 모바일 네트워크 전환 시 IP가 바뀌어도 동일 클라이언트로 인식
+        String clientFingerprint = buildClientFingerprint(userAgent, acceptLanguage);
 
         // 동시 중복 요청 차단: 이미 처리 중인 동일 클라이언트 요청이면 즉시 거부
         if (!processingClients.add(clientFingerprint)) {
@@ -235,11 +236,10 @@ public class ReportController {
         return normalized.isEmpty() ? "unknown" : normalized;
     }
 
-    private String buildClientFingerprint(String ipAddress, String userAgent, String acceptLanguage) {
-        String normalizedIp = ipAddress == null ? "unknown" : ipAddress;
+    private String buildClientFingerprint(String userAgent, String acceptLanguage) {
         String normalizedUa = normalizeHeader(userAgent);
         String normalizedLang = normalizeHeader(acceptLanguage);
-        String payload = "ipua|" + normalizedIp + "|" + normalizedUa + "|" + normalizedLang;
+        String payload = "ua|" + normalizedUa + "|" + normalizedLang;
 
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
