@@ -1,0 +1,5 @@
+.vscode
+.gradle
+node_modules
+build
+.env
