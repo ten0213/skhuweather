@@ -1,3 +1,4 @@
+com/skhuweather/config/ReportResetScheduler.class
 com/skhuweather/entity/WeatherReport.class
 com/skhuweather/SkhuweatherApplication.class
 com/skhuweather/controller/ReportController.class

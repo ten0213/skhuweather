@@ -1,3 +1,9 @@
+import { useState, useEffect } from 'react';
+
+// React 리렌더링·StrictMode 더블마운트와 무관하게 동작하는 모듈 단위 플래그
+let globalIsSubmitting = false;
+const SESSION_KEY = 'lastReportAt';
+const BLOCK_MS = 10_000; // 백엔드 IP 단기 제한(10초)과 동일
 
 const WEATHER_TYPES = [
   { key: 'rainy',  label: '비가 와요',     img: '/img/report/report_rainy.png',  type: 0 },
@@ -8,6 +14,7 @@ const WEATHER_TYPES = [
   { key: 'snowy',  label: '눈이 와요',      img: '/img/report/report_snow.png',   type: 5 },
 ];
 
+<<<<<<< HEAD
 function setCookie(name, value, days) {
   const d = new Date();
   d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
@@ -67,44 +74,77 @@ function getRemainingTime() {
   return `${minutes}분`;
 }
 
+=======
+>>>>>>> 8a9cd08a9d3b6ccb6869711738dc61ea117d9c03
 function WeatherReportButtons({ counts, onReportSuccess }) {
-  async function handleReport(weatherType) {
-    const remaining = getRemainingTime();
-    if (remaining) {
-      alert(`제보는 3시간에 1번만 가능합니다.\n${remaining} 후에 다시 제보해주세요.`);
-      return;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+
+  // 새로고침 후에도 30초 차단 윈도우 복원
+  useEffect(() => {
+    const lastAt = Number(sessionStorage.getItem(SESSION_KEY) || 0);
+    const remaining = BLOCK_MS - (Date.now() - lastAt);
+    if (remaining > 0) {
+      globalIsSubmitting = true;
+      setIsSubmitting(true);
+      const timer = setTimeout(() => {
+        globalIsSubmitting = false;
+        setIsSubmitting(false);
+      }, remaining);
+      return () => clearTimeout(timer);
     }
+  }, []);
 
-    const sessionId = getSessionId();
-
+  async function handleReport(weatherType) {
+    if (globalIsSubmitting) return;
+    globalIsSubmitting = true;
+    setIsSubmitting(true);
+    setStatusMsg('');
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, weatherType }),
+        credentials: 'include',
+        body: JSON.stringify({ weatherType }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        setLastReportTime();
-        alert('제보 완료!');
+        sessionStorage.setItem(SESSION_KEY, Date.now().toString());
+        setStatusMsg('제보 완료!');
         onReportSuccess?.();
-      } else {
-        alert(data.message || '제보에 실패했습니다.');
+      } else if (res.status !== 429) {
+        setStatusMsg(data.message || '제보에 실패했습니다.');
       }
     } catch (e) {
-      alert('서버에 연결할 수 없습니다.');
+      setStatusMsg('서버에 연결할 수 없습니다.');
+    } finally {
+      const lastAt = Number(sessionStorage.getItem(SESSION_KEY) || 0);
+      const remaining = BLOCK_MS - (Date.now() - lastAt);
+      if (remaining > 0) {
+        // 제보 성공: 30초 윈도우가 끝날 때 재활성화, 2초 후 메시지 제거
+        setTimeout(() => { globalIsSubmitting = false; setIsSubmitting(false); }, remaining);
+        setTimeout(() => setStatusMsg(''), 2000);
+      } else {
+        // 제보 실패: 2초 후 재활성화
+        setTimeout(() => { globalIsSubmitting = false; setIsSubmitting(false); setStatusMsg(''); }, 2000);
+      }
     }
   }
 
   return (
     <div className="icon-box">
       <h2 id="give_tip">현재 회대의 날씨를 제보해주세요!</h2>
+      {statusMsg && (
+        <p style={{ textAlign: 'center', fontWeight: 'bold', margin: '8px 0' }}>
+          {statusMsg}
+        </p>
+      )}
       <div className="turtle-sit">
         {WEATHER_TYPES.map(({ key, label, img, type }) => (
           <li key={key} className="turtle-feel">
-            <button className="report-btn" onClick={() => handleReport(type)}>
+            <button className="report-btn" onClick={() => handleReport(type)} disabled={isSubmitting}>
               <img src={img} style={{ width: '150px' }} alt={label} />
               <span>{counts?.[key] ?? 0}</span>
             </button>

@@ -1,45 +1,80 @@
-# 날씨는_쿠름이 (React + Spring Boot)
+# 날씨는_쿠름이 🐢
 
-성공회대학교 날씨 서비스를 React 프론트엔드 + Spring Boot(H2 DB) 백엔드로 재구현한 프로젝트입니다.
+> 성공회대학교 날씨 서비스 — React + Spring Boot 풀스택 재구현
+
+---
+
+## 개요
+
+**날씨는_쿠름이**는 성공회대학교(SKHU) 캠퍼스의 날씨 정보를 제공하는 웹 서비스입니다.
+마스코트 거북이 캐릭터 **쿠름이**가 현재 날씨에 맞는 반응을 보여주며, 학생들이 직접 날씨 상태를 제보할 수 있습니다.
+
+### 주요 기능
+
+- **실시간 날씨** — 기온, 강수량, 습도, 시간별 예보
+- **날씨 제보** — 비 / 흐림 / 화창 / 공기나쁨 / 바람 / 눈 (6가지 유형)
+- **중복 제보 방지** — 클라이언트 지문 + IP 기반 3시간 잠금
+- **학교 공지사항** — 롤링 배너로 표시
+- **쿠름이 캐릭터** — 날씨에 따라 동적으로 반응
+
+---
+
+## 기술 스택
+
+| 구분 | 기술 |
+|------|------|
+| **Frontend** | React 18, React Router 6, Vite 5 |
+| **Backend** | Spring Boot 3.2, Spring Data JPA |
+| **Database** | H2 (임베디드, 파일 저장) |
+| **날씨 API** | Open-Meteo (무료), SKHU Weather API 프록시 |
+| **배포** | Vercel (프론트), 자체 서버 (백엔드) |
 
 ---
 
 ## 프로젝트 구조
 
 ```
-skhuweather-react/
-├── backend/          ← Spring Boot (H2 DB)
-└── frontend/         ← React (Vite)
+skhuweather/
+├── backend/                     # Spring Boot 서버
+│   ├── src/main/java/com/skhuweather/
+│   │   ├── controller/          # REST API 컨트롤러
+│   │   ├── entity/              # JPA 엔티티
+│   │   ├── repository/          # 데이터 접근 레이어
+│   │   └── config/              # 설정 클래스
+│   ├── src/main/resources/
+│   │   └── application.properties
+│   └── pom.xml
+│
+└── frontend/                    # React SPA
+    ├── src/
+    │   ├── components/          # UI 컴포넌트
+    │   ├── pages/               # 페이지 컴포넌트
+    │   └── services/            # API 서비스 모듈
+    ├── vite.config.js
+    └── vercel.json
 ```
 
 ---
 
-## 백엔드 실행 (Spring Boot + H2)
+## 실행 방법
+
+### 1. 백엔드 (Spring Boot)
 
 ```bash
 cd backend
 ./mvnw spring-boot:run
-# 또는 Maven 설치된 경우:
+# 또는 Maven이 설치된 경우:
 mvn spring-boot:run
 ```
 
-- 서버: http://localhost:8080
-- **H2 Console**: http://localhost:8080/h2-console
-  - JDBC URL: `jdbc:h2:mem:skhuweather`
-  - User: `sa` / Password: (빈칸)
+| 항목 | 값 |
+|------|-----|
+| 서버 주소 | http://localhost:8089 |
+| H2 Console | http://localhost:8089/h2-console |
+| JDBC URL | `jdbc:h2:file:./data/skhuweather` |
+| 계정 | User: `sa` / Password: (빈칸) |
 
-### API 목록
-
-| Method | URL               | 설명                        |
-|--------|-------------------|-----------------------------|
-| GET    | /api/weather      | 외부 날씨 API 프록시         |
-| GET    | /api/notices      | 학교 공지사항 (H2 DB)        |
-| GET    | /api/reports      | 날씨 제보 현황 (H2 DB)       |
-| POST   | /api/reports      | 날씨 제보 등록 (H2 DB)       |
-
----
-
-## 프론트엔드 실행 (React)
+### 2. 프론트엔드 (React)
 
 ```bash
 cd frontend
@@ -47,12 +82,66 @@ npm install
 npm run dev
 ```
 
-- 앱: http://localhost:5173
-- 백엔드가 먼저 실행되어 있어야 합니다.
+- 앱 주소: http://localhost:5173
+- **백엔드가 먼저 실행되어 있어야 합니다.**
+
+#### 원격 백엔드 연결 시
+
+```bash
+VITE_API_TARGET=http://<host>:<port> npm run dev
+```
 
 ---
 
-## H2 DB 테이블
+## API 명세
 
-- **school_notice**: 학교 공지사항 (앱 시작 시 8개 샘플 데이터 자동 삽입)
-- **weather_report**: 날씨 제보 (비/흐림/화창/공기나쁨/바람/눈, 세션ID로 중복 방지, 3시간 단위 초기화)
+| Method | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| `GET` | `/api/weather` | 외부 날씨 API 프록시 |
+| `GET` | `/api/notices` | 학교 공지사항 목록 |
+| `GET` | `/api/reports` | 날씨 제보 현황 조회 |
+| `POST` | `/api/reports` | 날씨 제보 등록 |
+
+---
+
+## 데이터베이스 스키마
+
+### `school_notice`
+학교 공지사항 테이블. 앱 시작 시 샘플 데이터 8건이 자동 삽입됩니다.
+
+### `weather_report`
+날씨 제보 테이블. 다음 6가지 유형을 지원합니다.
+
+| 코드 | 유형 |
+|------|------|
+| `0` | 비 |
+| `1` | 흐림 |
+| `2` | 화창 |
+| `3` | 공기나쁨 |
+| `4` | 바람 |
+| `5` | 눈 |
+
+---
+
+## 중복 제보 방지 로직
+
+같은 사용자가 짧은 시간 내에 반복 제보하는 것을 막기 위해 다음 규칙을 적용합니다.
+
+| 규칙 | 기준 |
+|------|------|
+| 클라이언트 지문 | SHA-256(User-Agent + Accept-Language) 해시 |
+| 클라이언트당 제한 | 3시간 내 최대 2회 |
+| IP당 제한 | 3시간 내 최대 200회 |
+| 클라이언트 최소 간격 | 3초 |
+| IP 최소 간격 | 10초 |
+
+> 같은 Wi-Fi 환경의 여러 사용자는 IP가 동일하더라도 클라이언트 지문으로 개별 식별됩니다.
+
+---
+
+## 변경 이력 (주요)
+
+- **중복 제보 버그 수정** — 동일 클라이언트에서 제보가 2번씩 등록되는 버그 다수 수정
+- **Wi-Fi 공유 환경 개선** — 같은 Wi-Fi 사용 시 1개 클라이언트로 인식되던 버그 수정
+- **클라이언트 개별 식별** — IP가 같아도 다른 클라이언트를 독립적으로 취급하도록 개선
+- **쿠키 → 지문 방식 전환** — 쿠키 기반 중복 방지에서 IP + UA 해시 지문 방식으로 변경

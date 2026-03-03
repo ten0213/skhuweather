@@ -19,7 +19,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "http://13.125.139.31:8089",
                         "https://skhuweather.vercel.app")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
+                .allowedHeaders("*")
+                .allowCredentials(true);
     }
 
     @Bean
