@@ -2,6 +2,7 @@ package com.skhuweather.controller;
 
 import com.skhuweather.entity.WeatherReport;
 import com.skhuweather.repository.WeatherReportRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -33,20 +34,32 @@ public class ReportController {
 
     // 날씨 제보 제출 (3시간 내 동일 세션 중복 방지)
     @PostMapping
-    public ResponseEntity<Map<String, String>> submitReport(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<Map<String, String>> submitReport(
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request) {
         String sessionId = (String) body.get("sessionId");
         int weatherType  = (int) body.get("weatherType");
+        String ipAddress = resolveClientIp(request);
 
         LocalDateTime threeHoursAgo = LocalDateTime.now().minusHours(3);
 
-        if (reportRepo.existsBySessionIdAndCreatedAtAfter(sessionId, threeHoursAgo)) {
+        if (reportRepo.existsBySessionIdAndCreatedAtAfter(sessionId, threeHoursAgo)
+                || reportRepo.existsByIpAddressAndCreatedAtAfter(ipAddress, threeHoursAgo)) {
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "제보는 3시간에 1번만 가능합니다."));
         }
 
-        WeatherReport report = new WeatherReport(weatherType, sessionId, LocalDateTime.now());
+        WeatherReport report = new WeatherReport(weatherType, sessionId, ipAddress, LocalDateTime.now());
         reportRepo.save(report);
 
         return ResponseEntity.ok(Map.of("message", "제보 완료!"));
+    }
+
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isEmpty()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

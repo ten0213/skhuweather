@@ -8,24 +8,50 @@ const WEATHER_TYPES = [
   { key: 'snowy',  label: '눈이 와요',      img: '/img/report/report_snow.png',   type: 5 },
 ];
 
-// 기기별 고정 sessionId (localStorage에 저장)
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Strict`;
+}
+
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+// 기기별 고정 sessionId (localStorage + cookie 이중 저장)
 function getSessionId() {
   let id = localStorage.getItem('weatherSessionId');
+  if (!id) {
+    id = getCookie('weatherSessionId');
+    if (id) {
+      localStorage.setItem('weatherSessionId', id);
+    }
+  }
   if (!id) {
     id = crypto.randomUUID();
     localStorage.setItem('weatherSessionId', id);
   }
+  setCookie('weatherSessionId', id, 365);
   return id;
 }
 
 // 마지막 제보 시각 저장/조회
 function getLastReportTime() {
-  const saved = localStorage.getItem('lastReportTime');
+  let saved = localStorage.getItem('lastReportTime');
+  if (!saved) {
+    saved = getCookie('lastReportTime');
+    if (saved) {
+      localStorage.setItem('lastReportTime', saved);
+    }
+  }
   return saved ? parseInt(saved, 10) : null;
 }
 
 function setLastReportTime() {
-  localStorage.setItem('lastReportTime', Date.now().toString());
+  const now = Date.now().toString();
+  localStorage.setItem('lastReportTime', now);
+  setCookie('lastReportTime', now, 1);
 }
 
 // 남은 제한 시간을 "X시간 Y분" 형태로 반환, null이면 제한 없음
